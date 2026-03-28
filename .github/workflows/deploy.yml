@@ -35,12 +35,14 @@ jobs:
       - name: Prepare .env
         run: cp .env.production .env
 
-      - name: Test FTP connection
+      - name: Debug secrets
         run: |
+          echo "FTP_HOST length: ${#FTP_HOST}"
+          echo "FTP_HOST hex dump:"
+          echo -n "$FTP_HOST" | xxd | head -3
+          echo "FTP_USER length: ${#FTP_USER}"
           echo "Testing DNS..."
           nslookup "$FTP_HOST" || true
-          echo "Testing FTP..."
-          curl -v --connect-timeout 10 "ftp://${FTP_HOST}/" --user "${FTP_USER}:${FTP_PASS}" 2>&1 | head -20 || true
 
       - name: Deploy via LFTP
         run: |
