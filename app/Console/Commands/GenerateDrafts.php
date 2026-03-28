@@ -3,10 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Models\BrandVoice;
+use App\Models\Post;
 use App\Models\SourceItem;
 use App\Services\AI\DraftGeneratorService;
 use App\Services\AI\RelevanceService;
+use App\Services\SettingsService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class GenerateDrafts extends Command
 {
@@ -63,6 +66,38 @@ class GenerateDrafts extends Command
         $this->info("Generating drafts for {$userFacingItems->count()} items...");
         $drafts = $draftGenerator->generateDrafts($userFacingItems, $voice);
         $this->info("  Generated {$drafts->count()} drafts.");
+
+        // Step 3: Auto-publish if enabled
+        $settings = app(SettingsService::class);
+        if ($settings->get('general', 'auto_publish')) {
+            $published = 0;
+            foreach ($drafts as $draft) {
+                $slug = Str::slug($draft->title);
+                $baseSlug = $slug;
+                $counter = 1;
+                while (Post::where('slug', $slug)->exists()) {
+                    $slug = $baseSlug.'-'.$counter++;
+                }
+
+                Post::create([
+                    'draft_id' => $draft->id,
+                    'repository_id' => $draft->repository_id,
+                    'slug' => $slug,
+                    'title' => $draft->title,
+                    'teaser' => $draft->teaser,
+                    'body_markdown' => $draft->body_markdown,
+                    'body_html' => $draft->body_html ?: Str::markdown($draft->body_markdown),
+                    'category' => $draft->category,
+                    'is_published' => true,
+                    'published_at' => now(),
+                ]);
+
+                $draft->update(['status' => 'published']);
+                $published++;
+            }
+
+            $this->info("  Auto-published {$published} posts.");
+        }
 
         return self::SUCCESS;
     }
