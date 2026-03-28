@@ -24,6 +24,7 @@ class SettingsController extends Controller
             'seoDescription' => $this->settings->get('site', 'seo_description', ''),
             'language' => $this->settings->get('general', 'language', 'de'),
             'autoPublish' => (bool) $this->settings->get('general', 'auto_publish', false),
+            'publishFrequency' => $this->settings->get('general', 'publish_frequency', 'realtime'),
             'excludePaths' => $this->settings->get('rules', 'exclude_paths', ''),
             'excludeLabels' => $this->settings->get('rules', 'exclude_labels', ''),
             'includeLabels' => $this->settings->get('rules', 'include_labels', ''),
@@ -73,6 +74,11 @@ class SettingsController extends Controller
         $this->settings->set('site', 'seo_description', $request->seo_description);
         $this->settings->set('general', 'language', $request->language);
         $this->settings->set('general', 'auto_publish', $request->boolean('auto_publish') ? '1' : '0');
+
+        $request->validate([
+            'publish_frequency' => 'nullable|in:realtime,daily,every_3_days,weekly,biweekly,monthly',
+        ]);
+        $this->settings->set('general', 'publish_frequency', $request->input('publish_frequency', 'realtime'));
 
         return back()->with('success', 'Site settings updated.');
     }

@@ -67,8 +67,11 @@ class GenerateDrafts extends Command
         $drafts = $draftGenerator->generateDrafts($userFacingItems, $voice);
         $this->info("  Generated {$drafts->count()} drafts.");
 
-        // Step 3: Auto-publish if enabled
+        // Record last run time for frequency scheduling
         $settings = app(SettingsService::class);
+        $settings->set('general', 'last_generate_run', now()->toIso8601String());
+
+        // Step 3: Auto-publish if enabled
         if ($settings->get('general', 'auto_publish')) {
             $published = 0;
             foreach ($drafts as $draft) {
