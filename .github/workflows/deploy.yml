@@ -20,13 +20,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install npm dependencies
         run: npm ci
 
       - name: Build assets
@@ -35,22 +44,13 @@ jobs:
       - name: Prepare .env
         run: cp .env.production .env
 
-      - name: Debug secrets
-        run: |
-          echo "FTP_HOST length: ${#FTP_HOST}"
-          echo "FTP_HOST hex dump:"
-          echo -n "$FTP_HOST" | xxd | head -3
-          echo "FTP_USER length: ${#FTP_USER}"
-          echo "Testing DNS..."
-          nslookup "$FTP_HOST" || true
-
       - name: Deploy via LFTP
         run: |
           sudo apt-get install -y -qq lftp
           lftp -u "${FTP_USER},${FTP_PASS}" "ftp://${FTP_HOST}" <<'LFTP_SCRIPT'
             set ftp:ssl-allow yes
             set ssl:verify-certificate no
-            set net:timeout 30
+            set net:timeout 60
             set net:max-retries 4
             set mirror:parallel-transfer-count 5
             mirror --reverse --delete --verbose \
