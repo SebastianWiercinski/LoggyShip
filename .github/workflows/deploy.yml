@@ -31,22 +31,38 @@ jobs:
       - name: Prepare .env
         run: cp .env.production .env
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          exclude: |
-            **/.git*
-            **/.git*/**
-            node_modules/**
-            screenshots/**
-            tests/**
-            .env.production
-            deploy.sh
-            package.json
-            package-lock.json
-            vite.config.js
-            resources/css/**
-            resources/js/**
+      - name: Verify secrets are available
+        run: |
+          if [ -z "${{ secrets.FTP_HOST }}" ]; then echo "FTP_HOST is empty!"; exit 1; fi
+          if [ -z "${{ secrets.FTP_USER }}" ]; then echo "FTP_USER is empty!"; exit 1; fi
+          if [ -z "${{ secrets.FTP_PASS }}" ]; then echo "FTP_PASS is empty!"; exit 1; fi
+          echo "All secrets available. Testing DNS..."
+          nslookup ${{ secrets.FTP_HOST }} || echo "DNS lookup failed"
+          echo "Testing FTP connection..."
+          curl -v --connect-timeout 10 ftp://${{ secrets.FTP_HOST }}/ -u "${{ secrets.FTP_USER }}:${{ secrets.FTP_PASS }}" 2>&1 | head -20 || true
+
+      - name: Deploy via LFTP
+        run: |
+          sudo apt-get install -y lftp
+          lftp -e "
+            set ftp:ssl-allow yes
+            set ssl:verify-certificate no
+            set net:timeout 30
+            set net:max-retries 4
+            set mirror:parallel-transfer-count 5
+            mirror --reverse --delete --verbose \
+              --exclude .git/ \
+              --exclude .github/ \
+              --exclude node_modules/ \
+              --exclude screenshots/ \
+              --exclude tests/ \
+              --exclude .env.production \
+              --exclude deploy.sh \
+              --exclude package.json \
+              --exclude package-lock.json \
+              --exclude vite.config.js \
+              --exclude resources/css/ \
+              --exclude resources/js/ \
+              ./ ./
+            bye
+          " -u "${{ secrets.FTP_USER }},${{ secrets.FTP_PASS }}" "ftp://${{ secrets.FTP_HOST }}"
