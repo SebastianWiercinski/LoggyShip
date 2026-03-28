@@ -95,6 +95,7 @@ Route::middleware(['auth', EnsureInstalled::class])->prefix('admin')->name('admi
 
 // Public changelog
 Route::prefix('updates')->group(function () {
-    Route::get('/', function () { return 'Changelog coming soon.'; })->name('public.changelog');
-    Route::get('/feed.xml', function () { return response('', 200)->header('Content-Type', 'application/xml'); })->name('public.feed');
+    Route::get('/', [\App\Http\Controllers\Public\ChangelogController::class, 'index'])->name('public.changelog');
+    Route::get('/feed.xml', [\App\Http\Controllers\Public\ChangelogController::class, 'feed'])->name('public.feed');
+    Route::get('/{post:slug}', [\App\Http\Controllers\Public\ChangelogController::class, 'show'])->name('public.changelog.show');
 });
