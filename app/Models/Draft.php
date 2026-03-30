@@ -16,6 +16,8 @@ class Draft extends Model
         'body_markdown',
         'body_html',
         'category',
+        'is_release_note',
+        'version',
         'status',
         'confidence_score',
         'source_bundle',
@@ -27,6 +29,7 @@ class Draft extends Model
         return [
             'confidence_score' => 'float',
             'source_bundle' => 'array',
+            'is_release_note' => 'boolean',
         ];
     }
 

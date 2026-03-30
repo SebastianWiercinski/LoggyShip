@@ -103,7 +103,7 @@ class DraftGeneratorService
             'teaser' => $result['teaser'] ?? null,
             'body_markdown' => $result['body'],
             'body_html' => Str::markdown($result['body']),
-            'category' => $this->mapCategory($result['category'] ?? 'improved'),
+            'category' => PromptHelper::mapCategory($result['category'] ?? 'improved'),
             'status' => 'draft',
             'confidence_score' => $result['confidence'] ?? 0.7,
             'source_bundle' => $sourceItems->map(fn ($i) => [
@@ -123,28 +123,12 @@ class DraftGeneratorService
     private function callLLM(Collection $sourceItems, BrandVoice $voice, $llm): ?array
     {
         $language = $voice->language ?? 'de';
-        $languageInstruction = $this->getLanguageInstruction($language);
-
-        $voiceProfile = $voice->generated_profile;
-        $voiceInstruction = '';
-        if ($voiceProfile) {
-            $voiceInstruction = "\n\nBrand Voice Profile:\n".json_encode($voiceProfile, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        } elseif ($voice->sample_texts) {
-            $samples = implode("\n---\n", $voice->sample_texts);
-            $voiceInstruction = "\n\nBrand Voice Samples (match this tone and style):\n{$samples}";
-        }
-
-        $noGoWords = $voice->no_go_words ? "\n\nNever use these words: {$voice->no_go_words}" : '';
+        $languageInstruction = PromptHelper::getLanguageInstruction($language);
+        $voiceInstruction = PromptHelper::getVoiceInstruction($voice);
+        $noGoWords = PromptHelper::getNoGoWordsInstruction($voice);
 
         $itemsContext = $sourceItems->map(function (SourceItem $item) {
-            $metadata = $item->metadata ?? [];
-            $files = implode(', ', array_slice($metadata['changed_files'] ?? [], 0, 15));
-
-            return "Type: {$item->type}\n"
-                ."Title: {$item->title}\n"
-                ."Description: ".mb_substr($item->body ?? '', 0, 1500)."\n"
-                ."Files changed: {$files}\n"
-                ."Labels: ".implode(', ', $metadata['labels'] ?? []);
+            return PromptHelper::formatSourceItemContext($item);
         })->implode("\n\n---\n\n");
 
         $systemPrompt = <<<PROMPT
@@ -179,7 +163,7 @@ PROMPT;
             ['role' => 'user', 'content' => "Generate a product update from these changes:\n\n{$itemsContext}"],
         ], ['temperature' => 0.4, 'max_tokens' => 2048]);
 
-        $result = json_decode($this->cleanJsonResponse($response), true);
+        $result = json_decode(PromptHelper::cleanJsonResponse($response), true);
 
         if (! is_array($result) || empty($result['title']) || empty($result['body'])) {
             return null;
@@ -188,43 +172,4 @@ PROMPT;
         return $result;
     }
 
-    private function getLanguageInstruction(string $language): string
-    {
-        return match ($language) {
-            'de' => 'Write the update in German (Deutsch). Use "du" unless the brand voice says otherwise.',
-            'en' => 'Write the update in English.',
-            'fr' => 'Write the update in French (Français).',
-            'es' => 'Write the update in Spanish (Español).',
-            'it' => 'Write the update in Italian (Italiano).',
-            'nl' => 'Write the update in Dutch (Nederlands).',
-            'pt' => 'Write the update in Portuguese (Português).',
-            'pl' => 'Write the update in Polish (Polski).',
-            'ja' => 'Write the update in Japanese (日本語).',
-            default => "Write the update in the language identified by code: {$language}.",
-        };
-    }
-
-    private function mapCategory(string $category): string
-    {
-        return match (strtolower($category)) {
-            'new', 'feature' => 'new',
-            'improved', 'improvement', 'enhancement' => 'improved',
-            'fixed', 'fix', 'bug', 'bugfix' => 'fixed',
-            'performance', 'speed' => 'performance',
-            'security' => 'security',
-            default => 'improved',
-        };
-    }
-
-    private function cleanJsonResponse(string $response): string
-    {
-        $response = trim($response);
-
-        if (str_starts_with($response, '```')) {
-            $response = preg_replace('/^```(?:json)?\s*/m', '', $response);
-            $response = preg_replace('/\s*```\s*$/m', '', $response);
-        }
-
-        return trim($response);
-    }
 }

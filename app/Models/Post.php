@@ -16,6 +16,8 @@ class Post extends Model
         'body_markdown',
         'body_html',
         'category',
+        'is_release_note',
+        'version',
         'is_published',
         'published_at',
         'seo_title',
@@ -26,6 +28,7 @@ class Post extends Model
     {
         return [
             'is_published' => 'boolean',
+            'is_release_note' => 'boolean',
             'published_at' => 'datetime',
         ];
     }

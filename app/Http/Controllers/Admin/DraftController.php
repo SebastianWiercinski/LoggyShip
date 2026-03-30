@@ -7,6 +7,7 @@ use App\Models\BrandVoice;
 use App\Models\Draft;
 use App\Models\Post;
 use App\Services\AI\DraftGeneratorService;
+use App\Services\AI\ReleaseNoteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -71,6 +72,8 @@ class DraftController extends Controller
             'body_markdown' => $draft->body_markdown,
             'body_html' => $draft->body_html ?: Str::markdown($draft->body_markdown),
             'category' => $draft->category,
+            'is_release_note' => $draft->is_release_note,
+            'version' => $draft->version,
             'is_published' => true,
             'published_at' => now(),
         ]);
@@ -89,7 +92,7 @@ class DraftController extends Controller
             ->with('success', 'Draft discarded.');
     }
 
-    public function regenerate(Draft $draft, DraftGeneratorService $generator)
+    public function regenerate(Draft $draft, DraftGeneratorService $generator, ReleaseNoteService $releaseNoteService)
     {
         $voice = $draft->brandVoice ?? BrandVoice::where('is_active', true)->first();
 
@@ -98,7 +101,25 @@ class DraftController extends Controller
         }
 
         try {
-            $generator->regenerateDraft($draft, $voice);
+            if ($draft->is_release_note) {
+                $items = $draft->sourceItems;
+                if ($items->isEmpty()) {
+                    return back()->with('error', 'No source items linked to this draft.');
+                }
+                $newDraft = $releaseNoteService->generate($items, $voice, $draft->version ?? '1.0.0', $draft->repository_id);
+                $draft->update([
+                    'title' => $newDraft->title,
+                    'teaser' => $newDraft->teaser,
+                    'body_markdown' => $newDraft->body_markdown,
+                    'body_html' => $newDraft->body_html,
+                    'category' => $newDraft->category,
+                    'confidence_score' => $newDraft->confidence_score,
+                    'status' => 'draft',
+                ]);
+                $newDraft->delete();
+            } else {
+                $generator->regenerateDraft($draft, $voice);
+            }
 
             return redirect()->route('admin.drafts.show', $draft)
                 ->with('success', 'Draft regenerated.');

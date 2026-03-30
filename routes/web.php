@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\BrandVoiceController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DraftController;
 use App\Http\Controllers\Admin\PostController;
+use App\Http\Controllers\Admin\ReleaseNoteController;
 use App\Http\Controllers\Admin\RepositoryController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Auth\LoginController;
@@ -53,6 +54,10 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 // Admin
 Route::middleware(['auth', EnsureInstalled::class])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', DashboardController::class)->name('dashboard');
+
+    // Release Notes
+    Route::get('/release-notes/create', [ReleaseNoteController::class, 'create'])->name('release-notes.create');
+    Route::post('/release-notes/generate', [ReleaseNoteController::class, 'generate'])->name('release-notes.generate');
 
     // Drafts
     Route::get('/drafts', [DraftController::class, 'index'])->name('drafts.index');
